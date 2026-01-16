@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Minimal Pomodoro</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+        background: #0f172a;
+        color: #e5e7eb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+      }
+
+      .app {
+        background: #020617;
+        padding: 32px;
+        border-radius: 16px;
+        width: 300px;
+        text-align: center;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      }
+
+      .time {
+        font-size: 56px;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+
+      .mode {
+        letter-spacing: 2px;
+        font-size: 14px;
+        opacity: 0.7;
+        margin-bottom: 24px;
+      }
+
+      button {
+        width: 100%;
+        padding: 12px;
+        font-size: 16px;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+        background: #22c55e;
+        color: #022c22;
+        font-weight: 600;
+      }
+
+      button.pause {
+        background: #facc15;
+        color: #422006;
+      }
+
+      .info {
+        margin-top: 24px;
+        font-size: 14px;
+        opacity: 0.8;
+      }
+
+      .settings {
+        margin-top: 16px;
+        font-size: 12px;
+        opacity: 0.6;
+        cursor: pointer;
+      }
+
+      .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .modal-content {
+        background: #020617;
+        padding: 24px;
+        border-radius: 12px;
+        width: 260px;
+      }
+
+      .modal-content label {
+        font-size: 12px;
+        display: block;
+        margin-top: 12px;
+        margin-bottom: 4px;
+      }
+
+      .modal-content input {
+        width: 100%;
+        padding: 8px;
+        border-radius: 8px;
+        border: none;
+      }
+
+      .modal-content button {
+        margin-top: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="time" id="time">25:00</div>
+      <div class="mode" id="mode">FOCUS</div>
+      <button id="toggleBtn">Start</button>
+
+      <div class="info">
+        🔥 Streak hari ini: <span id="streak">0</span><br />
+        ⏱ Fokus hari ini: <span id="total">0</span> menit
+      </div>
+
+      <div class="settings" id="openSettings">⚙ Atur waktu</div>
+    </div>
+
+    <div class="modal" id="settingsModal">
+      <div class="modal-content">
+        <label>Focus (menit)</label>
+        <input type="number" id="focusInput" min="1" />
+
+        <label>Rest (menit)</label>
+        <input type="number" id="restInput" min="1" />
+
+        <button id="saveSettings">Simpan</button>
+      </div>
+    </div>
+
+    <audio id="bell" src="bell.mp3"></audio>
+
+    <script>
+      let focusTime = Number(localStorage.getItem("focusTime")) || 25;
+      let restTime = Number(localStorage.getItem("restTime")) || 5;
+
+      let isRunning = false;
+      let isFocus = true;
+      let remaining = focusTime * 60;
+      let interval;
+
+      const timeEl = document.getElementById("time");
+      const modeEl = document.getElementById("mode");
+      const btn = document.getElementById("toggleBtn");
+      const streakEl = document.getElementById("streak");
+      const totalEl = document.getElementById("total");
+      const bell = document.getElementById("bell");
+
+      const today = new Date().toISOString().slice(0, 10);
+      let stats = JSON.parse(localStorage.getItem("stats")) || {};
+
+      if (!stats[today]) {
+        stats[today] = { focusCount: 0, totalMinutes: 0 };
+      }
+
+      function updateStats() {
+        streakEl.textContent = stats[today].focusCount;
+        totalEl.textContent = stats[today].totalMinutes;
+        localStorage.setItem("stats", JSON.stringify(stats));
+      }
+
+      function updateDisplay() {
+        const m = Math.floor(remaining / 60)
+          .toString()
+          .padStart(2, "0");
+        const s = (remaining % 60).toString().padStart(2, "0");
+        timeEl.textContent = `${m}:${s}`;
+        modeEl.textContent = isFocus ? "FOCUS" : "REST";
+      }
+
+      function switchMode() {
+        bell.play();
+        if (isFocus) {
+          stats[today].focusCount++;
+          stats[today].totalMinutes += focusTime;
+          updateStats();
+          remaining = restTime * 60;
+        } else {
+          remaining = focusTime * 60;
+        }
+        isFocus = !isFocus;
+        updateDisplay();
+      }
+
+      function tick() {
+        if (remaining > 0) {
+          remaining--;
+          updateDisplay();
+        } else {
+          switchMode();
+        }
+      }
+
+      btn.onclick = () => {
+        if (!isRunning) {
+          interval = setInterval(tick, 1000);
+          btn.textContent = "Pause";
+          btn.classList.add("pause");
+        } else {
+          clearInterval(interval);
+          btn.textContent = "Start";
+          btn.classList.remove("pause");
+        }
+        isRunning = !isRunning;
+      };
+
+      updateDisplay();
+      updateStats();
+
+      const modal = document.getElementById("settingsModal");
+      document.getElementById("openSettings").onclick = () => {
+        modal.style.display = "flex";
+        document.getElementById("focusInput").value = focusTime;
+        document.getElementById("restInput").value = restTime;
+      };
+
+      document.getElementById("saveSettings").onclick = () => {
+        focusTime = Number(document.getElementById("focusInput").value);
+        restTime = Number(document.getElementById("restInput").value);
+        localStorage.setItem("focusTime", focusTime);
+        localStorage.setItem("restTime", restTime);
+        remaining = focusTime * 60;
+        isFocus = true;
+        updateDisplay();
+        modal.style.display = "none";
+      };
+
+      modal.onclick = (e) => {
+        if (e.target === modal) modal.style.display = "none";
+      };
+    </script>
+  </body>
+</html>
